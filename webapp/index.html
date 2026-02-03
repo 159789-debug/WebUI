@@ -1,0 +1,666 @@
+﻿<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GRID BOT - Admin Overview</title>
+    <style>
+
+      :root {
+        --bg: #0f1216;
+        --panel: #171b20;
+        --panel-2: #1e232a;
+        --panel-3: #252b33;
+        --border: #2f363f;
+        --text: #e6edf3;
+        --muted: #9aa4af;
+        --accent: #33d0a6;
+        --accent-strong: #1fb488;
+        --danger: #ff5b5b;
+        --warning: #f4b248;
+        --shadow: 0 14px 40px rgba(0, 0, 0, 0.35);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI",
+          "Helvetica Neue", Arial, sans-serif;
+        background: radial-gradient(circle at top, #1f252d, #0c0f14 55%, #090b0f 100%);
+        color: var(--text);
+      }
+
+      .app {
+        min-height: 100vh;
+        display: grid;
+        grid-template-columns: 240px 1fr;
+      }
+
+      aside {
+        background: linear-gradient(180deg, #12161b, #0d1014);
+        border-right: 1px solid var(--border);
+        padding: 28px 20px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        color: var(--accent);
+        margin-bottom: 28px;
+      }
+
+      .brand span {
+        display: inline-block;
+        width: 24px;
+        height: 24px;
+        border: 2px solid var(--accent);
+        border-radius: 6px;
+        transform: rotate(45deg);
+      }
+
+      .section-title {
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: var(--muted);
+        margin: 20px 0 12px;
+      }
+
+      .symbol-list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .symbol-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 12px;
+        background: var(--panel-2);
+        border: 1px solid transparent;
+        border-radius: 10px;
+        color: var(--text);
+        font-size: 13px;
+        text-align: left;
+        transition: border 0.2s ease, transform 0.2s ease;
+      }
+
+      .symbol-item.active {
+        border-color: rgba(51, 208, 166, 0.6);
+        box-shadow: 0 0 0 1px rgba(51, 208, 166, 0.1);
+      }
+
+      .symbol-item:disabled {
+        opacity: 0.9;
+      }
+
+      .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--danger);
+        box-shadow: 0 0 0 4px rgba(255, 91, 91, 0.1);
+      }
+
+      .dot.on {
+        background: var(--accent);
+        box-shadow: 0 0 0 4px rgba(51, 208, 166, 0.15);
+      }
+
+      main {
+        padding: 32px 36px 48px;
+      }
+
+      .header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 20px;
+      }
+
+      .header h1 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 600;
+      }
+
+      .selected-card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px 18px;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        flex-wrap: wrap;
+      }
+
+      .selected-item {
+        font-size: 13px;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .selected-item strong {
+        color: var(--text);
+        font-weight: 600;
+      }
+
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        font-size: 12px;
+      }
+
+      .status-pill .indicator {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--warning);
+      }
+
+      .status-pill[data-state="RUNNING"] .indicator {
+        background: var(--accent);
+      }
+
+      .status-pill[data-state="STOPPED"] .indicator {
+        background: var(--danger);
+      }
+
+      .tabs {
+        display: flex;
+        gap: 16px;
+        margin: 18px 0 6px;
+      }
+
+      .tab {
+        font-size: 13px;
+        color: var(--muted);
+        padding-bottom: 8px;
+        border-bottom: 2px solid transparent;
+      }
+
+      .tab.active {
+        color: var(--accent);
+        border-color: var(--accent);
+      }
+
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 20px 22px 24px;
+        box-shadow: var(--shadow);
+        animation: fadeUp 0.6s ease both;
+      }
+
+      .panel + .panel {
+        margin-top: 18px;
+      }
+
+      .panel-title {
+        font-size: 14px;
+        color: var(--accent);
+        margin: 0 0 14px;
+        font-weight: 600;
+      }
+
+      .control-row {
+        display: grid;
+        grid-template-columns: 1fr auto auto;
+        gap: 12px;
+      }
+
+      .control-row select,
+      .control-row button {
+        height: 40px;
+      }
+
+      .btn {
+        border: 1px solid transparent;
+        border-radius: 10px;
+        padding: 10px 16px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+
+      .btn-primary {
+        background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+        color: #08140f;
+      }
+
+      .btn-outline {
+        background: transparent;
+        border-color: var(--border);
+        color: var(--text);
+      }
+
+      .btn-danger {
+        background: #2d2324;
+        border-color: rgba(255, 91, 91, 0.4);
+        color: #ffbcbc;
+      }
+
+      .form-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+      }
+
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .field label {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .field input,
+      .field select {
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 12px;
+        color: var(--text);
+        font-size: 14px;
+      }
+
+      .field small {
+        font-size: 11px;
+        color: #71808e;
+      }
+
+      .footer-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 18px;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .note {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .feedback {
+        font-size: 12px;
+        color: var(--accent);
+      }
+
+      @keyframes fadeUp {
+        from {
+          opacity: 0;
+          transform: translateY(18px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @media (max-width: 1024px) {
+        .app {
+          grid-template-columns: 1fr;
+        }
+
+        aside {
+          display: none;
+        }
+
+        .form-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .control-row {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 640px) {
+        main {
+          padding: 24px 18px 36px;
+        }
+
+        .form-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <aside>
+        <div class="brand">
+          <span></span>
+          GRID BOT
+        </div>
+
+        <div class="section-title">Symbols</div>
+        <div class="symbol-list" id="symbolsList">
+          <button class="symbol-item" disabled>
+            <span>불러오는 중...</span>
+            <span class="dot"></span>
+          </button>
+        </div>
+      </aside>
+
+      <main>
+        <div class="header">
+          <h1>Admin Overview</h1>
+        </div>
+
+        <div class="selected-card">
+          <div class="selected-item">
+            Selected
+          </div>
+          <div class="selected-item">
+            Symbol: <strong id="selectedSymbol">-</strong>
+          </div>
+          <div class="selected-item">
+            ID: <strong id="selectedAccount">-</strong>
+          </div>
+          <div class="status-pill" id="statusPill" data-state="UNKNOWN">
+            <span class="indicator"></span>
+            <span id="statusValue">UNKNOWN</span>
+          </div>
+        </div>
+
+        <div class="tabs">
+          <div class="tab active">Settings</div>
+          <div class="tab">Orders</div>
+        </div>
+
+        <div class="panel">
+          <p class="panel-title">설정 변경</p>
+          <div class="control-row">
+            <select id="stopAction">
+              <option>바로 정지</option>
+              <option>매수취소 정지</option>
+              <option>매도취소 정지</option>
+              <option>전부취소 정지</option>
+            </select>
+            <button class="btn btn-primary" id="startBtn">시작</button>
+            <button class="btn btn-danger" id="stopBtn">정지</button>
+          </div>
+          <div class="note" style="margin-top: 8px;">
+            미니앱에서 시작/정지 및 설정 저장을 지원합니다.
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="form-grid">
+            <div class="field">
+              <label>분할</label>
+              <input type="number" step="1" data-key="분할" />
+              <small>매수 분할 횟수</small>
+            </div>
+            <div class="field">
+              <label>gap</label>
+              <input type="number" step="0.0001" data-key="gap" />
+              <small>매수/매도 간격</small>
+            </div>
+            <div class="field">
+              <label>금액</label>
+              <input type="number" step="0.0001" data-key="금액" />
+              <small>1회 매수 금액</small>
+            </div>
+            <div class="field">
+              <label>최대매수가격</label>
+              <input type="number" step="0.0001" data-key="최대매수가격" />
+              <small>매수 주문 최고가(0이면 제한 없음)</small>
+            </div>
+            <div class="field">
+              <label>최대간격</label>
+              <input type="number" step="1" data-key="최대간격" />
+              <small>최대 매수 횟수</small>
+            </div>
+            <div class="field">
+              <label>손절간격</label>
+              <input type="number" step="1" data-key="손절간격" />
+              <small>손절 기준(틱)</small>
+            </div>
+            <div class="field">
+              <label>RSI_MIN</label>
+              <input type="number" step="0.01" data-key="RSI_MIN" />
+              <small>매수 RSI 기준</small>
+            </div>
+            <div class="field">
+              <label>RSI_MAX</label>
+              <input type="number" step="0.01" data-key="RSI_MAX" />
+              <small>매수 재개 RSI</small>
+            </div>
+            <div class="field">
+              <label>RSI_BUY_STOP_MODE</label>
+              <select data-key="RSI_BUY_STOP_MODE">
+                <option value="0">0: OFF</option>
+                <option value="1">1: ON</option>
+                <option value="2">2: AUTO</option>
+              </select>
+              <small>RSI 매수 차단 모드</small>
+            </div>
+            <div class="field">
+              <label>RSI_BUY_STOP_AUTO_INIT</label>
+              <select data-key="RSI_BUY_STOP_AUTO_INIT">
+                <option value="0">0: OFF</option>
+                <option value="1">1: ON</option>
+              </select>
+              <small>AUTO 시작값</small>
+            </div>
+          </div>
+          <div class="footer-row">
+            <div class="feedback" id="feedback">&nbsp;</div>
+            <button class="btn btn-primary" id="saveBtn">설정 저장</button>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script>
+      const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+      if (tg) {
+        tg.ready();
+        tg.expand();
+      }
+
+      const params = new URLSearchParams(window.location.search);
+      const getParam = (key) => params.get(key) || "";
+
+      const selectedSymbol = (getParam("symbol") || "").toUpperCase();
+      const selectedAccount = getParam("account");
+      const status = (getParam("status") || "UNKNOWN").toUpperCase();
+
+      const selectedSymbolEl = document.getElementById("selectedSymbol");
+      const selectedAccountEl = document.getElementById("selectedAccount");
+      const statusPill = document.getElementById("statusPill");
+      const statusValue = document.getElementById("statusValue");
+
+      selectedSymbolEl.textContent = selectedSymbol || "-";
+      selectedAccountEl.textContent = selectedAccount || "-";
+      statusPill.dataset.state = status;
+      statusValue.textContent = status;
+
+      const fields = Array.from(document.querySelectorAll("[data-key]"));
+      fields.forEach((field) => {
+        const key = field.dataset.key;
+        if (!key) {
+          return;
+        }
+        const value = getParam(key);
+        if (value !== "") {
+          field.value = value;
+        }
+      });
+
+      const symbolsRaw = getParam("symbols");
+      const statesRaw = getParam("symbol_states");
+      const symbols = symbolsRaw
+        ? symbolsRaw.split(",").map((item) => item.trim()).filter(Boolean)
+        : (selectedSymbol ? [selectedSymbol] : []);
+
+      const stateMap = {};
+      if (statesRaw) {
+        statesRaw.split(",").forEach((chunk) => {
+          const [sym, flag] = chunk.split(":");
+          if (!sym) {
+            return;
+          }
+          stateMap[sym.toUpperCase()] = flag === "1";
+        });
+      }
+
+      const symbolsList = document.getElementById("symbolsList");
+      symbolsList.innerHTML = "";
+      if (symbols.length === 0) {
+        const item = document.createElement("button");
+        item.className = "symbol-item";
+        item.disabled = true;
+        item.innerHTML = "<span>심볼 없음</span><span class=\"dot\"></span>";
+        symbolsList.appendChild(item);
+      } else {
+        symbols.forEach((sym) => {
+          const item = document.createElement("button");
+          item.className = "symbol-item";
+          if (sym.toUpperCase() === selectedSymbol) {
+            item.classList.add("active");
+          }
+          item.disabled = true;
+
+          const dot = document.createElement("span");
+          dot.className = "dot" + (stateMap[sym.toUpperCase()] ? " on" : "");
+
+          const label = document.createElement("span");
+          label.textContent = sym;
+
+          item.appendChild(label);
+          item.appendChild(dot);
+          symbolsList.appendChild(item);
+        });
+      }
+
+      const feedback = document.getElementById("feedback");
+      const saveBtn = document.getElementById("saveBtn");
+      const stopAction = document.getElementById("stopAction");
+      const startBtn = document.getElementById("startBtn");
+      const stopBtn = document.getElementById("stopBtn");
+
+      const showFeedback = (text, isError) => {
+        feedback.textContent = text;
+        feedback.style.color = isError ? "#ff8a8a" : "#33d0a6";
+      };
+
+      if (!tg) {
+        showFeedback("Telegram에서 열면 설정 저장이 가능합니다.", true);
+      }
+
+      const isRunning = status === "RUNNING";
+      startBtn.disabled = isRunning;
+      stopBtn.disabled = !isRunning;
+
+      const sendControl = (action) => {
+        if (!tg) {
+          showFeedback("Telegram에서 열어주세요.", true);
+          return;
+        }
+        if (!selectedSymbol || !selectedAccount) {
+          showFeedback("심볼 또는 계정 정보가 없습니다.", true);
+          return;
+        }
+
+        const payload = {
+          type: "control",
+          action,
+          symbol: selectedSymbol,
+          account_id: selectedAccount,
+        };
+
+        if (action === "stop") {
+          payload.stop_action = stopAction.value;
+        }
+
+        try {
+          tg.sendData(JSON.stringify(payload));
+          showFeedback(action === "start" ? "시작 요청을 전송했습니다." : "정지 요청을 전송했습니다.", false);
+          if (typeof tg.close === "function") {
+            setTimeout(() => tg.close(), 250);
+          }
+        } catch (err) {
+          showFeedback("전송 오류: " + err, true);
+        }
+      };
+
+      startBtn.addEventListener("click", () => sendControl("start"));
+      stopBtn.addEventListener("click", () => sendControl("stop"));
+
+      saveBtn.addEventListener("click", () => {
+        if (!tg) {
+          showFeedback("Telegram에서 열어주세요.", true);
+          return;
+        }
+        if (!selectedSymbol || !selectedAccount) {
+          showFeedback("심볼 또는 계정 정보가 없습니다.", true);
+          return;
+        }
+
+        const settings = {};
+        fields.forEach((field) => {
+          const key = field.dataset.key;
+          if (!key) {
+            return;
+          }
+          const value = String(field.value || "").trim();
+          if (value !== "") {
+            settings[key] = value;
+          }
+        });
+
+        if (Object.keys(settings).length === 0) {
+          showFeedback("변경할 설정이 없습니다.", true);
+          return;
+        }
+
+        const payload = {
+          type: "settings",
+          symbol: selectedSymbol,
+          account_id: selectedAccount,
+          settings,
+        };
+
+        try {
+          tg.sendData(JSON.stringify(payload));
+          showFeedback("설정 전송 완료! 봇에서 저장을 처리합니다.", false);
+          if (typeof tg.close === "function") {
+            setTimeout(() => tg.close(), 250);
+          }
+        } catch (err) {
+          showFeedback("전송 오류: " + err, true);
+        }
+      });
+    </script>
+  </body>
+</html>
