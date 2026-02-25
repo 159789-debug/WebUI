@@ -154,6 +154,21 @@
         font-weight: 600;
       }
 
+      .selected-select {
+        min-width: 110px;
+        height: 30px;
+        background: var(--panel-2);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: var(--text);
+        font-size: 12px;
+        padding: 0 8px;
+      }
+
+      .selected-select:disabled {
+        opacity: 0.7;
+      }
+
       .status-pill {
         display: inline-flex;
         align-items: center;
@@ -379,10 +394,12 @@
             Selected
           </div>
           <div class="selected-item">
-            Symbol: <strong id="selectedSymbol">-</strong>
+            Symbol:
+            <select id="symbolSelect" class="selected-select"></select>
           </div>
           <div class="selected-item">
-            ID: <strong id="selectedAccount">-</strong>
+            ID:
+            <select id="accountSelect" class="selected-select"></select>
           </div>
           <div class="status-pill" id="statusPill" data-state="UNKNOWN">
             <span class="indicator"></span>
@@ -428,11 +445,6 @@
               <label>금액</label>
               <input type="number" step="0.0001" data-key="금액" />
               <small>1회 매수 금액</small>
-            </div>
-            <div class="field">
-              <label>최대매수가격</label>
-              <input type="number" step="0.0001" data-key="최대매수가격" />
-              <small>매수 주문 최고가(0이면 제한 없음)</small>
             </div>
             <div class="field">
               <label>최대간격</label>
@@ -490,69 +502,230 @@
 
       const params = new URLSearchParams(window.location.search);
       const getParam = (key) => params.get(key) || "";
+      const normalizeStatus = (raw) => {
+        const status = String(raw || "").toUpperCase();
+        if (status === "RUNNING" || status === "STOPPED") {
+          return status;
+        }
+        return "UNKNOWN";
+      };
 
-      const selectedSymbol = (getParam("symbol") || "").toUpperCase();
-      const selectedAccount = getParam("account");
-      const status = (getParam("status") || "UNKNOWN").toUpperCase();
-
-      const selectedSymbolEl = document.getElementById("selectedSymbol");
-      const selectedAccountEl = document.getElementById("selectedAccount");
       const statusPill = document.getElementById("statusPill");
       const statusValue = document.getElementById("statusValue");
-
-      selectedSymbolEl.textContent = selectedSymbol || "-";
-      selectedAccountEl.textContent = selectedAccount || "-";
-      statusPill.dataset.state = status;
-      statusValue.textContent = status;
+      const symbolSelect = document.getElementById("symbolSelect");
+      const accountSelect = document.getElementById("accountSelect");
+      const symbolsList = document.getElementById("symbolsList");
+      const feedback = document.getElementById("feedback");
+      const saveBtn = document.getElementById("saveBtn");
+      const stopAction = document.getElementById("stopAction");
+      const startBtn = document.getElementById("startBtn");
+      const stopBtn = document.getElementById("stopBtn");
 
       const fields = Array.from(document.querySelectorAll("[data-key]"));
-      fields.forEach((field) => {
-        const key = field.dataset.key;
-        if (!key) {
+      const fieldKeys = fields
+        .map((field) => field.dataset.key || "")
+        .filter(Boolean);
+
+      const showFeedback = (text, isError) => {
+        feedback.textContent = text;
+        feedback.style.color = isError ? "#ff8a8a" : "#33d0a6";
+      };
+
+      const parseLegacyData = () => {
+        const selectedSymbol = (getParam("symbol") || "").toUpperCase();
+        const selectedAccount = getParam("account");
+        const selectedStatus = normalizeStatus(getParam("status") || "UNKNOWN");
+
+        const symbolsRaw = getParam("symbols");
+        const statesRaw = getParam("symbol_states");
+        const symbols = symbolsRaw
+          ? symbolsRaw.split(",").map((item) => item.trim().toUpperCase()).filter(Boolean)
+          : (selectedSymbol ? [selectedSymbol] : []);
+
+        const stateMap = {};
+        if (statesRaw) {
+          statesRaw.split(",").forEach((chunk) => {
+            const [sym, flag] = chunk.split(":");
+            if (!sym) {
+              return;
+            }
+            stateMap[sym.toUpperCase()] = flag === "1";
+          });
+        }
+
+        const legacySettings = {};
+        fieldKeys.forEach((key) => {
+          const value = getParam(key);
+          if (value !== "") {
+            legacySettings[key] = value;
+          }
+        });
+
+        const accounts = selectedAccount ? [selectedAccount] : [];
+        const pairs = {};
+        symbols.forEach((sym) => {
+          const symbolPairs = {};
+          if (selectedAccount) {
+            const running = sym === selectedSymbol
+              ? selectedStatus === "RUNNING"
+              : !!stateMap[sym];
+            symbolPairs[selectedAccount] = {
+              status: running ? "RUNNING" : "STOPPED",
+              settings: { ...legacySettings },
+            };
+          }
+          pairs[sym] = symbolPairs;
+        });
+
+        return {
+          symbols,
+          accounts,
+          defaultSymbol: selectedSymbol || symbols[0] || "",
+          defaultAccount: selectedAccount || accounts[0] || "",
+          pairs,
+        };
+      };
+
+      const parsePanelData = () => {
+        const rawPayload = getParam("panel_payload");
+        if (!rawPayload) {
+          return parseLegacyData();
+        }
+
+        try {
+          const parsed = JSON.parse(rawPayload);
+          const symbols = Array.isArray(parsed.symbols)
+            ? parsed.symbols.map((item) => String(item || "").toUpperCase()).filter(Boolean)
+            : [];
+          const accounts = Array.isArray(parsed.accounts)
+            ? parsed.accounts.map((item) => String(item || "")).filter(Boolean)
+            : [];
+
+          const parsedPairs = parsed.pairs && typeof parsed.pairs === "object" ? parsed.pairs : {};
+          const pairs = {};
+
+          symbols.forEach((symbol) => {
+            const rawSymbolPairs = parsedPairs[symbol] && typeof parsedPairs[symbol] === "object"
+              ? parsedPairs[symbol]
+              : {};
+            const symbolPairs = {};
+            accounts.forEach((accountId) => {
+              const rawPair = rawSymbolPairs[accountId] && typeof rawSymbolPairs[accountId] === "object"
+                ? rawSymbolPairs[accountId]
+                : {};
+              const rawSettings = rawPair.settings && typeof rawPair.settings === "object"
+                ? rawPair.settings
+                : {};
+              const settings = {};
+              fieldKeys.forEach((key) => {
+                if (Object.prototype.hasOwnProperty.call(rawSettings, key)) {
+                  settings[key] = rawSettings[key];
+                }
+              });
+              symbolPairs[accountId] = {
+                status: normalizeStatus(rawPair.status),
+                settings,
+              };
+            });
+            pairs[symbol] = symbolPairs;
+          });
+
+          let defaultSymbol = String(parsed.default_symbol || "").toUpperCase();
+          if (!symbols.includes(defaultSymbol)) {
+            defaultSymbol = symbols[0] || "";
+          }
+
+          let defaultAccount = String(parsed.default_account || "");
+          if (!accounts.includes(defaultAccount)) {
+            defaultAccount = accounts[0] || "";
+          }
+
+          return {
+            symbols,
+            accounts,
+            defaultSymbol,
+            defaultAccount,
+            pairs,
+          };
+        } catch (err) {
+          return parseLegacyData();
+        }
+      };
+
+      const panelData = parsePanelData();
+      let currentSymbol = panelData.defaultSymbol || panelData.symbols[0] || "";
+      let currentAccount = panelData.defaultAccount || panelData.accounts[0] || "";
+
+      const getPairPayload = (symbol, accountId) => {
+        const symbolKey = String(symbol || "").toUpperCase();
+        const accountKey = String(accountId || "");
+        const symbolPairs = panelData.pairs[symbolKey];
+        if (!symbolPairs || typeof symbolPairs !== "object") {
+          return { status: "UNKNOWN", settings: {} };
+        }
+        const pair = symbolPairs[accountKey];
+        if (!pair || typeof pair !== "object") {
+          return { status: "UNKNOWN", settings: {} };
+        }
+        const settings = pair.settings && typeof pair.settings === "object"
+          ? pair.settings
+          : {};
+        return {
+          status: normalizeStatus(pair.status),
+          settings,
+        };
+      };
+
+      const renderSelectOptions = (selectEl, values, selectedValue) => {
+        selectEl.innerHTML = "";
+        if (!values.length) {
+          const emptyOption = document.createElement("option");
+          emptyOption.value = "";
+          emptyOption.textContent = "없음";
+          selectEl.appendChild(emptyOption);
+          selectEl.disabled = true;
           return;
         }
-        const value = getParam(key);
-        if (value !== "") {
-          field.value = value;
-        }
-      });
 
-      const symbolsRaw = getParam("symbols");
-      const statesRaw = getParam("symbol_states");
-      const symbols = symbolsRaw
-        ? symbolsRaw.split(",").map((item) => item.trim()).filter(Boolean)
-        : (selectedSymbol ? [selectedSymbol] : []);
-
-      const stateMap = {};
-      if (statesRaw) {
-        statesRaw.split(",").forEach((chunk) => {
-          const [sym, flag] = chunk.split(":");
-          if (!sym) {
-            return;
-          }
-          stateMap[sym.toUpperCase()] = flag === "1";
+        values.forEach((value) => {
+          const option = document.createElement("option");
+          option.value = value;
+          option.textContent = value;
+          selectEl.appendChild(option);
         });
-      }
 
-      const symbolsList = document.getElementById("symbolsList");
-      symbolsList.innerHTML = "";
-      if (symbols.length === 0) {
-        const item = document.createElement("button");
-        item.className = "symbol-item";
-        item.disabled = true;
-        item.innerHTML = "<span>심볼 없음</span><span class=\"dot\"></span>";
-        symbolsList.appendChild(item);
-      } else {
-        symbols.forEach((sym) => {
+        selectEl.disabled = false;
+        if (values.includes(selectedValue)) {
+          selectEl.value = selectedValue;
+        } else {
+          selectEl.value = values[0];
+        }
+      };
+
+      const renderSymbolsList = () => {
+        symbolsList.innerHTML = "";
+        if (!panelData.symbols.length) {
           const item = document.createElement("button");
           item.className = "symbol-item";
-          if (sym.toUpperCase() === selectedSymbol) {
+          item.disabled = true;
+          item.innerHTML = "<span>심볼 없음</span><span class=\"dot\"></span>";
+          symbolsList.appendChild(item);
+          return;
+        }
+
+        panelData.symbols.forEach((sym) => {
+          const item = document.createElement("button");
+          item.className = "symbol-item";
+          if (sym === currentSymbol) {
             item.classList.add("active");
           }
           item.disabled = true;
 
+          const pair = getPairPayload(sym, currentAccount);
+          const running = normalizeStatus(pair.status) === "RUNNING";
+
           const dot = document.createElement("span");
-          dot.className = "dot" + (stateMap[sym.toUpperCase()] ? " on" : "");
+          dot.className = "dot" + (running ? " on" : "");
 
           const label = document.createElement("span");
           label.textContent = sym;
@@ -561,33 +734,82 @@
           item.appendChild(dot);
           symbolsList.appendChild(item);
         });
-      }
+      };
 
-      const feedback = document.getElementById("feedback");
-      const saveBtn = document.getElementById("saveBtn");
-      const stopAction = document.getElementById("stopAction");
-      const startBtn = document.getElementById("startBtn");
-      const stopBtn = document.getElementById("stopBtn");
+      const applySelection = () => {
+        if (!panelData.symbols.length || !panelData.accounts.length) {
+          renderSelectOptions(symbolSelect, panelData.symbols, "");
+          renderSelectOptions(accountSelect, panelData.accounts, "");
+          statusPill.dataset.state = "UNKNOWN";
+          statusValue.textContent = "UNKNOWN";
+          startBtn.disabled = true;
+          stopBtn.disabled = true;
+          fields.forEach((field) => {
+            field.value = "";
+          });
+          renderSymbolsList();
+          return;
+        }
 
-      const showFeedback = (text, isError) => {
-        feedback.textContent = text;
-        feedback.style.color = isError ? "#ff8a8a" : "#33d0a6";
+        if (!panelData.symbols.includes(currentSymbol)) {
+          currentSymbol = panelData.symbols[0];
+        }
+        if (!panelData.accounts.includes(currentAccount)) {
+          currentAccount = panelData.accounts[0];
+        }
+
+        renderSelectOptions(symbolSelect, panelData.symbols, currentSymbol);
+        renderSelectOptions(accountSelect, panelData.accounts, currentAccount);
+
+        currentSymbol = symbolSelect.value;
+        currentAccount = accountSelect.value;
+
+        const pair = getPairPayload(currentSymbol, currentAccount);
+        const status = normalizeStatus(pair.status);
+        statusPill.dataset.state = status;
+        statusValue.textContent = status;
+
+        fields.forEach((field) => {
+          const key = field.dataset.key;
+          if (!key) {
+            return;
+          }
+          if (Object.prototype.hasOwnProperty.call(pair.settings, key)) {
+            field.value = pair.settings[key];
+          } else {
+            field.value = "";
+          }
+        });
+
+        const isRunning = status === "RUNNING";
+        startBtn.disabled = isRunning;
+        stopBtn.disabled = !isRunning;
+
+        renderSymbolsList();
       };
 
       if (!tg) {
         showFeedback("Telegram에서 열면 설정 저장이 가능합니다.", true);
       }
 
-      const isRunning = status === "RUNNING";
-      startBtn.disabled = isRunning;
-      stopBtn.disabled = !isRunning;
+      applySelection();
+
+      symbolSelect.addEventListener("change", () => {
+        currentSymbol = String(symbolSelect.value || "").toUpperCase();
+        applySelection();
+      });
+
+      accountSelect.addEventListener("change", () => {
+        currentAccount = String(accountSelect.value || "");
+        applySelection();
+      });
 
       const sendControl = (action) => {
         if (!tg) {
           showFeedback("Telegram에서 열어주세요.", true);
           return;
         }
-        if (!selectedSymbol || !selectedAccount) {
+        if (!currentSymbol || !currentAccount) {
           showFeedback("심볼 또는 계정 정보가 없습니다.", true);
           return;
         }
@@ -595,8 +817,8 @@
         const payload = {
           type: "control",
           action,
-          symbol: selectedSymbol,
-          account_id: selectedAccount,
+          symbol: currentSymbol,
+          account_id: currentAccount,
         };
 
         if (action === "stop") {
@@ -622,7 +844,7 @@
           showFeedback("Telegram에서 열어주세요.", true);
           return;
         }
-        if (!selectedSymbol || !selectedAccount) {
+        if (!currentSymbol || !currentAccount) {
           showFeedback("심볼 또는 계정 정보가 없습니다.", true);
           return;
         }
@@ -646,8 +868,8 @@
 
         const payload = {
           type: "settings",
-          symbol: selectedSymbol,
-          account_id: selectedAccount,
+          symbol: currentSymbol,
+          account_id: currentAccount,
           settings,
         };
 
