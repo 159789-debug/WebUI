@@ -595,6 +595,16 @@
           : [];
 
         const parsedPairs = parsed.pairs && typeof parsed.pairs === "object" ? parsed.pairs : {};
+        const defaultsRaw = parsed.settings_defaults && typeof parsed.settings_defaults === "object"
+          ? parsed.settings_defaults
+          : {};
+        const settingsDefaults = {};
+        fieldKeys.forEach((key) => {
+          if (Object.prototype.hasOwnProperty.call(defaultsRaw, key)) {
+            settingsDefaults[key] = defaultsRaw[key];
+          }
+        });
+
         const pairs = {};
 
         symbols.forEach((symbol) => {
@@ -609,12 +619,23 @@
             const rawSettings = rawPair.settings && typeof rawPair.settings === "object"
               ? rawPair.settings
               : {};
+            const rawSettingsOverrides = rawPair.settings_overrides && typeof rawPair.settings_overrides === "object"
+              ? rawPair.settings_overrides
+              : {};
+
             const settings = {};
             fieldKeys.forEach((key) => {
+              if (Object.prototype.hasOwnProperty.call(settingsDefaults, key)) {
+                settings[key] = settingsDefaults[key];
+              }
               if (Object.prototype.hasOwnProperty.call(rawSettings, key)) {
                 settings[key] = rawSettings[key];
               }
+              if (Object.prototype.hasOwnProperty.call(rawSettingsOverrides, key)) {
+                settings[key] = rawSettingsOverrides[key];
+              }
             });
+
             symbolPairs[accountId] = {
               status: normalizeStatus(rawPair.status),
               settings,
