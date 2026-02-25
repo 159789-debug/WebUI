@@ -586,70 +586,91 @@
         };
       };
 
-      const parsePanelData = () => {
-        const rawPayload = getParam("panel_payload");
-        if (!rawPayload) {
-          return parseLegacyData();
-        }
+      const parsePanelObject = (parsed) => {
+        const symbols = Array.isArray(parsed.symbols)
+          ? parsed.symbols.map((item) => String(item || "").toUpperCase()).filter(Boolean)
+          : [];
+        const accounts = Array.isArray(parsed.accounts)
+          ? parsed.accounts.map((item) => String(item || "")).filter(Boolean)
+          : [];
 
-        try {
-          const parsed = JSON.parse(rawPayload);
-          const symbols = Array.isArray(parsed.symbols)
-            ? parsed.symbols.map((item) => String(item || "").toUpperCase()).filter(Boolean)
-            : [];
-          const accounts = Array.isArray(parsed.accounts)
-            ? parsed.accounts.map((item) => String(item || "")).filter(Boolean)
-            : [];
+        const parsedPairs = parsed.pairs && typeof parsed.pairs === "object" ? parsed.pairs : {};
+        const pairs = {};
 
-          const parsedPairs = parsed.pairs && typeof parsed.pairs === "object" ? parsed.pairs : {};
-          const pairs = {};
-
-          symbols.forEach((symbol) => {
-            const rawSymbolPairs = parsedPairs[symbol] && typeof parsedPairs[symbol] === "object"
-              ? parsedPairs[symbol]
+        symbols.forEach((symbol) => {
+          const rawSymbolPairs = parsedPairs[symbol] && typeof parsedPairs[symbol] === "object"
+            ? parsedPairs[symbol]
+            : {};
+          const symbolPairs = {};
+          accounts.forEach((accountId) => {
+            const rawPair = rawSymbolPairs[accountId] && typeof rawSymbolPairs[accountId] === "object"
+              ? rawSymbolPairs[accountId]
               : {};
-            const symbolPairs = {};
-            accounts.forEach((accountId) => {
-              const rawPair = rawSymbolPairs[accountId] && typeof rawSymbolPairs[accountId] === "object"
-                ? rawSymbolPairs[accountId]
-                : {};
-              const rawSettings = rawPair.settings && typeof rawPair.settings === "object"
-                ? rawPair.settings
-                : {};
-              const settings = {};
-              fieldKeys.forEach((key) => {
-                if (Object.prototype.hasOwnProperty.call(rawSettings, key)) {
-                  settings[key] = rawSettings[key];
-                }
-              });
-              symbolPairs[accountId] = {
-                status: normalizeStatus(rawPair.status),
-                settings,
-              };
+            const rawSettings = rawPair.settings && typeof rawPair.settings === "object"
+              ? rawPair.settings
+              : {};
+            const settings = {};
+            fieldKeys.forEach((key) => {
+              if (Object.prototype.hasOwnProperty.call(rawSettings, key)) {
+                settings[key] = rawSettings[key];
+              }
             });
-            pairs[symbol] = symbolPairs;
+            symbolPairs[accountId] = {
+              status: normalizeStatus(rawPair.status),
+              settings,
+            };
           });
+          pairs[symbol] = symbolPairs;
+        });
 
-          let defaultSymbol = String(parsed.default_symbol || "").toUpperCase();
-          if (!symbols.includes(defaultSymbol)) {
-            defaultSymbol = symbols[0] || "";
-          }
-
-          let defaultAccount = String(parsed.default_account || "");
-          if (!accounts.includes(defaultAccount)) {
-            defaultAccount = accounts[0] || "";
-          }
-
-          return {
-            symbols,
-            accounts,
-            defaultSymbol,
-            defaultAccount,
-            pairs,
-          };
-        } catch (err) {
-          return parseLegacyData();
+        let defaultSymbol = String(parsed.default_symbol || "").toUpperCase();
+        if (!symbols.includes(defaultSymbol)) {
+          defaultSymbol = symbols[0] || "";
         }
+
+        let defaultAccount = String(parsed.default_account || "");
+        if (!accounts.includes(defaultAccount)) {
+          defaultAccount = accounts[0] || "";
+        }
+
+        return {
+          symbols,
+          accounts,
+          defaultSymbol,
+          defaultAccount,
+          pairs,
+        };
+      };
+
+      const decodeBase64Url = (encoded) => {
+        const normalized = String(encoded || "").replace(/-/g, "+").replace(/_/g, "/");
+        const pad = "=".repeat((4 - (normalized.length % 4)) % 4);
+        const binary = atob(normalized + pad);
+        const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+        return new TextDecoder("utf-8").decode(bytes);
+      };
+
+      const parsePanelData = () => {
+        const rawPayloadB64 = getParam("panel_payload_b64");
+        if (rawPayloadB64) {
+          try {
+            const decoded = decodeBase64Url(rawPayloadB64);
+            return parsePanelObject(JSON.parse(decoded));
+          } catch (err) {
+            // fallthrough to legacy formats
+          }
+        }
+
+        const rawPayload = getParam("panel_payload");
+        if (rawPayload) {
+          try {
+            return parsePanelObject(JSON.parse(rawPayload));
+          } catch (err) {
+            // fallthrough to legacy format
+          }
+        }
+
+        return parseLegacyData();
       };
 
       const panelData = parsePanelData();
