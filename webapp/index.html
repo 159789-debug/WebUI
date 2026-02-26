@@ -501,7 +501,8 @@
       }
 
       const params = new URLSearchParams(window.location.search);
-      const getParam = (key) => params.get(key) || "";
+      const hashParams = new URLSearchParams((window.location.hash || "").replace(/^#/, ""));
+      const getParam = (key) => params.get(key) || hashParams.get(key) || "";
       const normalizeStatus = (raw) => {
         const status = String(raw || "").toUpperCase();
         if (status === "RUNNING" || status === "STOPPED") {
@@ -797,7 +798,17 @@
           currentSymbol = "";
           currentAccount = "";
           applySelection();
-          showFeedback("서버 데이터 로드에 실패했습니다. /panel을 다시 열어주세요.", true);
+
+          const message = String((err && err.message) || "");
+          if (message.includes("HTTP 401")) {
+            showFeedback("인증 정보(initData) 확인에 실패했습니다. 최신 /panel 버튼으로 다시 열어주세요.", true);
+          } else if (message.includes("HTTP 403")) {
+            showFeedback("접근 권한이 일치하지 않습니다. 관리자에게 문의해주세요.", true);
+          } else if (message.includes("HTTP 410")) {
+            showFeedback("패널 토큰이 만료되었습니다. /panel을 다시 실행해주세요.", true);
+          } else {
+            showFeedback("서버 데이터 로드에 실패했습니다. /panel을 다시 열어주세요.", true);
+          }
         }
       };
 
