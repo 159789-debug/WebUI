@@ -694,7 +694,40 @@
         return parseLegacyData();
       };
 
-      const panelData = parsePanelData();
+      const fetchPanelDataFromServer = async () => {
+        const panelFetchUrl = getParam("panel_fetch_url");
+        if (!panelFetchUrl) {
+          return null;
+        }
+
+        try {
+          const headers = {
+            Accept: "application/json",
+          };
+          if (tg && tg.initData) {
+            headers["X-Telegram-Init-Data"] = tg.initData;
+          }
+
+          const response = await fetch(panelFetchUrl, {
+            method: "GET",
+            headers,
+            cache: "no-store",
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+
+          const payload = await response.json();
+          return parsePanelObject(payload);
+        } catch (err) {
+          console.warn("[panel] server fetch failed", err);
+          return null;
+        }
+      };
+
+      const hasPanelFetchMode = Boolean(getParam("panel_fetch_url"));
+      let panelData = parsePanelData();
       let currentSymbol = panelData.defaultSymbol || panelData.symbols[0] || "";
       let currentAccount = panelData.defaultAccount || panelData.accounts[0] || "";
 
@@ -830,11 +863,27 @@
         renderSymbolsList();
       };
 
+      const syncPanelDataFromServer = async () => {
+        const fetchedPanelData = await fetchPanelDataFromServer();
+        if (!fetchedPanelData) {
+          if (hasPanelFetchMode && (!panelData.symbols.length || !panelData.accounts.length)) {
+            showFeedback("서버 데이터 로드에 실패했습니다. /panel을 다시 열어주세요.", true);
+          }
+          return;
+        }
+
+        panelData = fetchedPanelData;
+        currentSymbol = panelData.defaultSymbol || panelData.symbols[0] || currentSymbol;
+        currentAccount = panelData.defaultAccount || panelData.accounts[0] || currentAccount;
+        applySelection();
+      };
+
       if (!tg) {
         showFeedback("Telegram에서 열면 설정 저장이 가능합니다.", true);
       }
 
       applySelection();
+      syncPanelDataFromServer();
 
       symbolSelect.addEventListener("change", () => {
         currentSymbol = String(symbolSelect.value || "").toUpperCase();
