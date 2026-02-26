@@ -626,11 +626,16 @@
         const headers = {
           Accept: "application/json",
         };
-        if (tg && tg.initData) {
-          headers["X-Telegram-Init-Data"] = tg.initData;
+
+        const initData = (tg && tg.initData) ? String(tg.initData) : "";
+        const requestUrl = new URL(panelFetchUrl);
+        if (initData) {
+          headers["X-Telegram-Init-Data"] = initData;
+          // 일부 프록시/터널 환경에서 커스텀 헤더 전달이 누락될 수 있어 query에도 복제합니다.
+          requestUrl.searchParams.set("init_data", initData);
         }
 
-        const response = await fetch(panelFetchUrl, {
+        const response = await fetch(requestUrl.toString(), {
           method: "GET",
           headers,
           cache: "no-store",
